@@ -1,0 +1,13 @@
+budget,interaction_count,company_type,response_rate,previous_purchases,converted
+50000,12,Enterprise,0.72,3,1
+18000,5,SMB,0.33,1,0
+92000,18,Enterprise,0.88,6,1
+12000,3,Startup,0.21,0,0
+35000,9,Mid-Market,0.91,2,1
+24000,7,SMB,0.45,1,0
+76000,15,Enterprise,0.79,4,1
+15000,4,Startup,0.25,0,0
+64000,11,Mid-Market,0.67,2,1
+28000,6,SMB,0.39,1,0
+81000,16,Enterprise,0.86,5,1
+22000,5,Startup,0.29,0,0

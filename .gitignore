@@ -1,0 +1,21 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Flask / local runtime
+backend/database/*.db
+backend/ml_models/*.pkl
+backend/ml_models/*.pickle
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/

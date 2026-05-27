@@ -1,7 +1,6 @@
 # SmartCRM AI
 
-SmartCRM AI is a student-friendly, localhost-only full-stack CRM project that combines lead management with lightweight machine learning features. It is designed to look realistic enough for resumes, internships, college submissions, and GitHub portfolios while staying simple to run on a Windows laptop.
-
+SmartCRM AI is a student-friendly, localhost-only full-stack CRM project that combines lead management with lightweight machine learning features.
 ## Tech Stack
 
 - Frontend: React, Tailwind CSS, Axios, React Router, Recharts

@@ -1,0 +1,6 @@
+# Optional: enables the trained models. Without these the API still serves
+# predictions using the documented heuristic fallbacks.
+pandas>=2.2
+numpy>=1.26
+scikit-learn>=1.5
+textblob>=0.18

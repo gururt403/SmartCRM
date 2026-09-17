@@ -2,44 +2,83 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
+@layer base {
+  /* Notion-like palette: warm near-white paper, near-black ink, blue accent. */
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 220 9% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 9% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 9% 15%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 30 12% 96%;
+    --secondary-foreground: 220 9% 15%;
+    --muted: 30 10% 96%;
+    --muted-foreground: 220 5% 45%;
+    --accent: 30 12% 95%;
+    --accent-foreground: 220 9% 15%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 24 6% 90%;
+    --input: 24 6% 90%;
+    --ring: 221 83% 53%;
+    --sidebar: 40 9% 97%;
+    --sidebar-foreground: 220 6% 35%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 220 8% 11%;
+    --foreground: 0 0% 93%;
+    --card: 220 8% 13%;
+    --card-foreground: 0 0% 93%;
+    --popover: 220 8% 13%;
+    --popover-foreground: 0 0% 93%;
+    --primary: 213 94% 68%;
+    --primary-foreground: 220 10% 10%;
+    --secondary: 220 6% 18%;
+    --secondary-foreground: 0 0% 93%;
+    --muted: 220 6% 18%;
+    --muted-foreground: 220 5% 62%;
+    --accent: 220 6% 20%;
+    --accent-foreground: 0 0% 93%;
+    --destructive: 0 63% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 6% 22%;
+    --input: 220 6% 22%;
+    --ring: 213 94% 68%;
+    --sidebar: 220 8% 9%;
+    --sidebar-foreground: 220 5% 70%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Notion's thin, unobtrusive scrollbars. */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { @apply rounded-full bg-border; }
+  ::-webkit-scrollbar-track { background: transparent; }
 }
 
-html,
-body,
-#root {
-  min-height: 100%;
-}
+@layer components {
+  /* The page column Notion uses for document content. */
+  .notion-page {
+    @apply mx-auto w-full max-w-[900px] px-6 md:px-12;
+  }
 
-body {
-  margin: 0;
-  font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
-  background:
-    radial-gradient(circle at top, rgba(34, 211, 238, 0.12), transparent 35%),
-    linear-gradient(135deg, #020617 0%, #0f172a 46%, #111827 100%);
-  color: #e2e8f0;
-}
+  .notion-title {
+    @apply text-3xl font-bold tracking-tight md:text-[40px] md:leading-[1.1];
+  }
 
-* {
-  box-sizing: border-box;
-}
-
-::selection {
-  background: rgba(34, 211, 238, 0.28);
-  color: #f8fafc;
-}
-
-input,
-select,
-textarea,
-button {
-  font: inherit;
-}
-
-.crm-card {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(2, 6, 23, 0.72);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.24);
+  .notion-block {
+    @apply -mx-2 rounded px-2 py-1 transition-colors hover:bg-accent/60;
+  }
 }

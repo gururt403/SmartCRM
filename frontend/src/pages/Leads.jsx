@@ -1,299 +1,228 @@
 import { useEffect, useState } from 'react'
-import api from '../services/api'
-import LoadingSpinner from '../components/LoadingSpinner'
-
-const blankLead = {
-  name: '',
-  email: '',
-  phone: '',
-  company: '',
-  budget: '',
-  lead_source: 'Website',
-  status: 'New',
-  last_contact_date: '',
-  company_type: 'SMB',
-  interaction_count: 0,
-  response_rate: 0,
-  previous_purchases: 0,
-  sentiment_label: 'Neutral'
-}
-
-const statusColors = {
-  New: 'bg-sky-500/20 text-sky-200',
-  Contacted: 'bg-amber-500/20 text-amber-200',
-  Negotiation: 'bg-fuchsia-500/20 text-fuchsia-200',
-  Converted: 'bg-emerald-500/20 text-emerald-200',
-  Lost: 'bg-rose-500/20 text-rose-200'
-}
+import { useSearchParams } from 'react-router-dom'
+import { Filter, MoreHorizontal, Pencil, Plus, Search, Target, Trash2, X } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Meter } from '@/components/ui/misc'
+import { Pagination } from '@/components/ui/pagination'
+import { TableSkeleton } from '@/components/ui/skeleton'
+import { EmptyState, ErrorState } from '@/components/ui/states'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, SortableHead } from '@/components/ui/table'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { PageHeader } from '@/components/layout/PageHeader'
+import { LeadFormDialog } from '@/components/leads/LeadForm'
+import { LeadDetailDrawer } from '@/components/leads/LeadDetail'
+import { useDeleteLead, useLeads } from '@/hooks/use-crm'
+import { useTableQuery } from '@/hooks/use-table-query'
+import { COMPANY_TYPES, LEAD_PRIORITIES, LEAD_SOURCES, LEAD_STATUSES, PRIORITY_VARIANTS, STATUS_VARIANTS } from '@/lib/constants'
+import { formatCurrency, formatDate, formatPercent } from '@/lib/utils'
 
 export default function Leads() {
-  const [leads, setLeads] = useState([])
-  const [form, setForm] = useState(blankLead)
-  const [editingId, setEditingId] = useState(null)
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const table = useTableQuery({ defaultSort: 'updated_at', filters: { status: 'all', priority: 'all', company_type: 'all', lead_source: 'all' } })
+  const { data, isLoading, isFetching, isError, error, refetch } = useLeads(table.params)
+  const deleteLead = useDeleteLead()
 
-  const fetchLeads = async (query = search, status = statusFilter) => {
-    setLoading(true)
-    try {
-      const response = await api.get('/leads', { params: { search: query, status } })
-      setLeads(response.data.leads)
-    } finally {
-      setLoading(false)
-    }
-  }
+  const [formOpen, setFormOpen] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [detailId, setDetailId] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
+  const [showFilters, setShowFilters] = useState(false)
 
+  // Deep links from the home page / command palette: ?focus=12, ?new=1
   useEffect(() => {
-    fetchLeads('', '')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  const startEdit = (lead) => {
-    setEditingId(lead.id)
-    setForm({
-      name: lead.name || '',
-      email: lead.email || '',
-      phone: lead.phone || '',
-      company: lead.company || '',
-      budget: lead.budget ?? '',
-      lead_source: lead.lead_source || 'Website',
-      status: lead.status || 'New',
-      last_contact_date: lead.last_contact_date || '',
-      company_type: lead.company_type || 'SMB',
-      interaction_count: lead.interaction_count || 0,
-      response_rate: lead.response_rate || 0,
-      previous_purchases: lead.previous_purchases || 0,
-      sentiment_label: lead.sentiment_label || 'Neutral'
-    })
-  }
-
-  const resetForm = () => {
-    setEditingId(null)
-    setForm(blankLead)
-  }
-
-  const handleSubmit = async (event) => {
-    event.preventDefault()
-    setSaving(true)
-    try {
-      if (editingId) {
-        await api.put(`/leads/${editingId}`, form)
-      } else {
-        await api.post('/leads', form)
-      }
-      resetForm()
-      await fetchLeads()
-    } finally {
-      setSaving(false)
+    const focus = searchParams.get('focus')
+    if (focus) {
+      setDetailId(Number(focus))
+      searchParams.delete('focus')
+      setSearchParams(searchParams, { replace: true })
     }
-  }
-
-  const handleDelete = async (leadId) => {
-    if (!window.confirm('Delete this lead?')) {
-      return
+    if (searchParams.get('new')) {
+      setEditing(null)
+      setFormOpen(true)
+      searchParams.delete('new')
+      setSearchParams(searchParams, { replace: true })
     }
-    await api.delete(`/leads/${leadId}`)
-    fetchLeads()
-  }
+  }, [searchParams, setSearchParams])
 
-  const handleSearch = async (event) => {
-    event.preventDefault()
-    fetchLeads(search, statusFilter)
-  }
-
-  if (loading) {
-    return <LoadingSpinner label="Loading leads..." />
+  const leads = data?.data || []
+  const openEdit = (lead) => {
+    setEditing(lead)
+    setFormOpen(true)
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
-        <form onSubmit={handleSubmit} className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 shadow-glow backdrop-blur">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-white">{editingId ? 'Edit Lead' : 'Add Lead'}</h3>
-            {editingId ? (
-              <button type="button" onClick={resetForm} className="rounded-xl border border-white/10 px-3 py-2 text-sm text-slate-300 hover:bg-white/5">
-                Cancel
-              </button>
-            ) : null}
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {[
-              ['name', 'Name'],
-              ['email', 'Email'],
-              ['phone', 'Phone'],
-              ['company', 'Company'],
-              ['budget', 'Budget'],
-              ['last_contact_date', 'Last Contact Date']
-            ].map(([key, label]) => (
-              <div key={key}>
-                <label className="mb-2 block text-sm text-slate-300">{label}</label>
-                <input
-                  type={key === 'budget' ? 'number' : key === 'last_contact_date' ? 'date' : 'text'}
-                  value={form[key]}
-                  onChange={(event) => setForm({ ...form, [key]: event.target.value })}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                />
-              </div>
-            ))}
-            <div>
-              <label className="mb-2 block text-sm text-slate-300">Lead Source</label>
-              <select
-                value={form.lead_source}
-                onChange={(event) => setForm({ ...form, lead_source: event.target.value })}
-                className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-cyan-400"
-              >
-                {['Website', 'LinkedIn', 'Referral', 'Instagram', 'Event', 'Cold Call'].map((option) => (
-                  <option key={option}>{option}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm text-slate-300">Status</label>
-              <select
-                value={form.status}
-                onChange={(event) => setForm({ ...form, status: event.target.value })}
-                className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-cyan-400"
-              >
-                {['New', 'Contacted', 'Negotiation', 'Converted', 'Lost'].map((option) => (
-                  <option key={option}>{option}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm text-slate-300">Company Type</label>
-              <select
-                value={form.company_type}
-                onChange={(event) => setForm({ ...form, company_type: event.target.value })}
-                className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-cyan-400"
-              >
-                {['Startup', 'SMB', 'Mid-Market', 'Enterprise'].map((option) => (
-                  <option key={option}>{option}</option>
-                ))}
-              </select>
-            </div>
-            {[
-              ['interaction_count', 'Interaction Count'],
-              ['response_rate', 'Response Rate'],
-              ['previous_purchases', 'Previous Purchases']
-            ].map(([key, label]) => (
-              <div key={key}>
-                <label className="mb-2 block text-sm text-slate-300">{label}</label>
-                <input
-                  type="number"
-                  step={key === 'response_rate' ? '0.01' : '1'}
-                  value={form[key]}
-                  onChange={(event) => setForm({ ...form, [key]: event.target.value })}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                />
-              </div>
-            ))}
-          </div>
-          <div className="mt-4">
-            <label className="mb-2 block text-sm text-slate-300">Sentiment Label</label>
-            <select
-              value={form.sentiment_label}
-              onChange={(event) => setForm({ ...form, sentiment_label: event.target.value })}
-              className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-cyan-400"
-            >
-              {['Positive', 'Neutral', 'Negative'].map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-          </div>
-          <button
-            type="submit"
-            disabled={saving}
-            className="mt-5 w-full rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-3 font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {saving ? 'Saving...' : editingId ? 'Update Lead' : 'Create Lead'}
-          </button>
-        </form>
+    <div className="notion-page animate-fade-in">
+      <PageHeader
+        icon={Target}
+        title="Leads"
+        description="Every lead in your pipeline. Search, filtering and sorting all run on the server."
+        actions={
+          <Button onClick={() => { setEditing(null); setFormOpen(true) }}>
+            <Plus className="h-4 w-4" />New lead
+          </Button>
+        }
+      />
 
-        <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 shadow-glow backdrop-blur">
-          <form onSubmit={handleSearch} className="mb-4 grid gap-3 md:grid-cols-[1.3fr_0.7fr_auto]">
-            <input
-              type="text"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by name, email, company..."
-              className="rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
+      <div className="rounded-lg border bg-card">
+        <div className="flex flex-col gap-2 border-b p-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Input
+              value={table.search}
+              onChange={(event) => table.onSearch(event.target.value)}
+              placeholder="Search name, email, company…"
+              className="pl-8"
+              aria-label="Search leads"
             />
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className="rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-white outline-none focus:border-cyan-400"
-            >
-              <option value="">All Statuses</option>
-              {['New', 'Contacted', 'Negotiation', 'Converted', 'Lost'].map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
-            <button type="submit" className="rounded-2xl bg-white px-4 py-3 font-semibold text-slate-950">
-              Search
-            </button>
-          </form>
-
-          <div className="overflow-hidden rounded-2xl border border-white/10">
-            <div className="max-h-[760px] overflow-auto">
-              <table className="min-w-full divide-y divide-white/10 text-left text-sm">
-                <thead className="bg-white/5 text-slate-300">
-                  <tr>
-                    {['Lead', 'Company', 'Status', 'Budget', 'AI Scores', 'Actions'].map((heading) => (
-                      <th key={heading} className="px-4 py-3 font-medium">
-                        {heading}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5 text-slate-200">
-                  {leads.map((lead) => (
-                    <tr key={lead.id} className="hover:bg-white/5">
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-white">{lead.name}</p>
-                        <p className="text-xs text-slate-400">{lead.email}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p>{lead.company}</p>
-                        <p className="text-xs text-slate-400">{lead.lead_source}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusColors[lead.status] || 'bg-white/10 text-slate-200'}`}>
-                          {lead.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">${Number(lead.budget || 0).toLocaleString()}</td>
-                      <td className="px-4 py-3 text-xs text-slate-300">
-                        <p>Conversion: {Math.round((lead.conversion_probability || 0) * 100)}%</p>
-                        <p>Churn: {Math.round((lead.churn_probability || 0) * 100)}%</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-2">
-                          <button onClick={() => startEdit(lead)} className="rounded-xl border border-cyan-500/30 px-3 py-2 text-xs font-semibold text-cyan-200 hover:bg-cyan-500/10">
-                            Edit
-                          </button>
-                          <button onClick={() => handleDelete(lead.id)} className="rounded-xl border border-rose-500/30 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/10">
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {!leads.length ? (
-                    <tr>
-                      <td colSpan="6" className="px-4 py-12 text-center text-slate-400">
-                        No leads found. Add one using the form.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
           </div>
+          <Button variant={showFilters ? 'secondary' : 'outline'} size="sm" onClick={() => setShowFilters((value) => !value)}>
+            <Filter className="h-3.5 w-3.5" />
+            Filters
+            {table.activeFilterCount ? <Badge variant="primary">{table.activeFilterCount}</Badge> : null}
+          </Button>
+          {table.activeFilterCount ? (
+            <Button variant="ghost" size="sm" onClick={table.reset}>
+              <X className="h-3.5 w-3.5" />Clear
+            </Button>
+          ) : null}
         </div>
+
+        {showFilters ? (
+          <div className="grid gap-3 border-b bg-muted/30 p-3 sm:grid-cols-2 lg:grid-cols-4">
+            <FilterSelect label="Status" value={table.filters.status} onChange={(value) => table.setFilter('status', value)} options={LEAD_STATUSES} />
+            <FilterSelect label="Priority" value={table.filters.priority} onChange={(value) => table.setFilter('priority', value)} options={LEAD_PRIORITIES} />
+            <FilterSelect label="Company type" value={table.filters.company_type} onChange={(value) => table.setFilter('company_type', value)} options={COMPANY_TYPES} />
+            <FilterSelect label="Source" value={table.filters.lead_source} onChange={(value) => table.setFilter('lead_source', value)} options={LEAD_SOURCES} />
+          </div>
+        ) : null}
+
+        {isLoading ? (
+          <TableSkeleton rows={8} columns={7} />
+        ) : isError ? (
+          <ErrorState error={error} onRetry={refetch} />
+        ) : leads.length === 0 ? (
+          <EmptyState
+            title={table.activeFilterCount ? 'No leads match these filters' : 'No leads yet'}
+            description={table.activeFilterCount ? 'Try clearing a filter or searching for something else.' : 'Create your first lead to get the pipeline moving.'}
+            action={
+              table.activeFilterCount
+                ? <Button variant="outline" size="sm" onClick={table.reset}>Clear filters</Button>
+                : <Button size="sm" onClick={() => { setEditing(null); setFormOpen(true) }}><Plus className="h-4 w-4" />New lead</Button>
+            }
+          />
+        ) : (
+          <div className={isFetching ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <SortableHead column="name" label="Lead" sort={table.sort} onSort={table.onSort} />
+                  <SortableHead column="company" label="Company" sort={table.sort} onSort={table.onSort} className="hidden md:table-cell" />
+                  <SortableHead column="status" label="Status" sort={table.sort} onSort={table.onSort} />
+                  <SortableHead column="priority" label="Priority" sort={table.sort} onSort={table.onSort} className="hidden lg:table-cell" />
+                  <SortableHead column="budget" label="Budget" sort={table.sort} onSort={table.onSort} />
+                  <SortableHead column="conversion_probability" label="Conversion" sort={table.sort} onSort={table.onSort} className="hidden lg:table-cell" />
+                  <SortableHead column="updated_at" label="Updated" sort={table.sort} onSort={table.onSort} className="hidden xl:table-cell" />
+                  <TableHead className="w-10"><span className="sr-only">Actions</span></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {leads.map((lead) => (
+                  <TableRow key={lead.id} className="cursor-pointer" onClick={() => setDetailId(lead.id)}>
+                    <TableCell>
+                      <p className="font-medium">{lead.name}</p>
+                      <p className="text-xs text-muted-foreground">{lead.email}</p>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <p>{lead.company}</p>
+                      <p className="text-xs text-muted-foreground">{lead.company_type}</p>
+                    </TableCell>
+                    <TableCell><Badge variant={STATUS_VARIANTS[lead.status]}>{lead.status}</Badge></TableCell>
+                    <TableCell className="hidden lg:table-cell"><Badge variant={PRIORITY_VARIANTS[lead.priority]}>{lead.priority}</Badge></TableCell>
+                    <TableCell className="tabular-nums">{formatCurrency(lead.budget)}</TableCell>
+                    <TableCell className="hidden w-28 lg:table-cell">
+                      <span className="text-xs tabular-nums">{formatPercent(lead.conversion_probability, 0)}</span>
+                      <Meter value={lead.conversion_probability} className="mt-1" />
+                    </TableCell>
+                    <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground xl:table-cell">
+                      {formatDate(lead.updated_at)}
+                    </TableCell>
+                    <TableCell onClick={(event) => event.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={`Actions for ${lead.name}`}>
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onSelect={() => setDetailId(lead.id)}>Open</DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => openEdit(lead)}><Pencil className="h-3.5 w-3.5" />Edit</DropdownMenuItem>
+                          <DropdownMenuItem destructive onSelect={() => setConfirmDelete(lead)}>
+                            <Trash2 className="h-3.5 w-3.5" />Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <Pagination pagination={data?.meta?.pagination} onPageChange={table.setPage} onPageSizeChange={table.setPageSize} />
+          </div>
+        )}
       </div>
+
+      <LeadFormDialog open={formOpen} onOpenChange={setFormOpen} lead={editing} />
+      <LeadDetailDrawer
+        leadId={detailId}
+        open={Boolean(detailId)}
+        onOpenChange={(open) => !open && setDetailId(null)}
+        onEdit={(lead) => { setDetailId(null); openEdit(lead) }}
+      />
+
+      <Dialog open={Boolean(confirmDelete)} onOpenChange={(open) => !open && setConfirmDelete(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete this lead?</DialogTitle>
+            <DialogDescription>
+              “{confirmDelete?.name}” will be archived. Its history stays in the audit log, but it will no longer appear in your lists.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              loading={deleteLead.isPending}
+              onClick={async () => {
+                await deleteLead.mutateAsync(confirmDelete.id)
+                setConfirmDelete(null)
+              }}
+            >
+              Delete lead
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+function FilterSelect({ label, value, onChange, options }) {
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-muted-foreground">{label}</label>
+      <Select value={value || 'all'} onValueChange={onChange}>
+        <SelectTrigger className="h-8" aria-label={label}><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All</SelectItem>
+          {options.map((option) => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+        </SelectContent>
+      </Select>
     </div>
   )
 }

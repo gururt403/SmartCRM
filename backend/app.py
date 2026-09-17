@@ -1,49 +1,79 @@
-from flask import Flask, jsonify
+"""SmartCRM application factory."""
+
+from __future__ import annotations
+
+import logging
+
+from flask import Flask, jsonify, request
 from flask_cors import CORS
-from werkzeug.security import generate_password_hash
 
-from config import CHURN_MODEL_PATH, FRONTEND_ORIGIN, LEAD_MODEL_PATH, SECRET_KEY
-from database.db import initialize_database, seed_demo_data
-from ml_models.train_churn_model import train_churn_model
-from ml_models.train_lead_model import train_lead_model
-from routes.auth import auth_bp
-from routes.dashboard import dashboard_bp
-from routes.leads import leads_bp
-from routes.predictions import predictions_bp
+from api.docs import bp as docs_bp
+from api.v1 import build_v1_blueprint
+from config import Config, activate
+from core.errors import register_error_handlers
+from core.responses import success
+from database.db import run_migrations
+from database.seed import ensure_pipeline_stages, seed_demo_data
 
 
-def create_app() -> Flask:
+def configure_logging(app: Flask) -> None:
+    logging.basicConfig(
+        level=getattr(logging, app.config.get("LOG_LEVEL", "INFO"), logging.INFO),
+        format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
+    )
+
+
+def create_app(config_object=Config) -> Flask:
+    config_object.validate()
+    activate(config_object)
+
     app = Flask(__name__)
-    app.config["SECRET_KEY"] = SECRET_KEY
-    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-    app.config["SESSION_COOKIE_HTTPONLY"] = True
-    CORS(app, supports_credentials=True, origins=[FRONTEND_ORIGIN])
+    app.config.from_object(config_object)
+    configure_logging(app)
 
-    initialize_database()
-    seed_demo_data(generate_password_hash)
+    CORS(
+        app,
+        supports_credentials=True,
+        origins=app.config["CORS_ORIGINS"],
+        allow_headers=["Content-Type", "X-Requested-With"],
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    )
 
-    try:
-        if not LEAD_MODEL_PATH.exists():
-            train_lead_model()
-        if not CHURN_MODEL_PATH.exists():
-            train_churn_model()
-    except Exception as exc:
-        app.logger.warning("Model training skipped during startup: %s", exc)
+    run_migrations()
+    ensure_pipeline_stages()
+    seed_demo_data()
 
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(leads_bp)
-    app.register_blueprint(predictions_bp)
-    app.register_blueprint(dashboard_bp)
+    app.register_blueprint(build_v1_blueprint())
+    app.register_blueprint(docs_bp)
+    register_error_handlers(app)
+
+    @app.after_request
+    def security_headers(response):
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
+    @app.get("/api/health")
+    def health():
+        """Liveness probe."""
+        return success({"status": "ok", "version": "1.0.0"})
 
     @app.get("/")
-    def health_check():
-        return jsonify({"message": "SmartCRM AI backend is running locally"}), 200
+    def root():
+        return jsonify({
+            "name": "SmartCRM API",
+            "version": "1.0.0",
+            "docs": "/api/v1/docs",
+            "health": "/api/health",
+        })
 
     return app
 
 
-app = create_app()
-
-
 if __name__ == "__main__":
-    app.run(debug=True, host="127.0.0.1", port=5000)
+    # `python app.py` stays the documented way to run the dev server, but the
+    # factory is NOT invoked at import time so tests can configure it first.
+    application = create_app()
+    application.run(debug=application.config["DEBUG"], host="127.0.0.1", port=5000)

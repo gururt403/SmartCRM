@@ -1,188 +1,150 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import api from '../services/api'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { LayoutGrid } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useAuth } from '@/hooks/use-auth'
 
-const initialRegister = {
-  name: '',
-  email: '',
-  password: '',
-  role: 'salesperson'
-}
+const loginSchema = z.object({
+  email: z.string().trim().email('Enter a valid email address'),
+  password: z.string().min(1, 'Enter your password')
+})
 
-export default function Auth({ onAuth }) {
+const registerSchema = z.object({
+  name: z.string().trim().min(2, 'Tell us your name'),
+  email: z.string().trim().email('Enter a valid email address'),
+  password: z.string().min(8, 'Use at least 8 characters')
+})
+
+export default function Auth() {
   const navigate = useNavigate()
-  const [mode, setMode] = useState('login')
-  const [loginForm, setLoginForm] = useState({ email: '', password: '' })
-  const [registerForm, setRegisterForm] = useState(initialRegister)
-  const [message, setMessage] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const handleLogin = async (event) => {
-    event.preventDefault()
-    setLoading(true)
-    setMessage('')
-    try {
-      const response = await api.post('/auth/login', loginForm)
-      onAuth(response.data.user)
-      navigate('/dashboard')
-    } catch (error) {
-      setMessage(error.response?.data?.message || 'Login failed')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleRegister = async (event) => {
-    event.preventDefault()
-    setLoading(true)
-    setMessage('')
-    try {
-      await api.post('/auth/register', registerForm)
-      setMessage('Registration successful. Please log in.')
-      setMode('login')
-      setRegisterForm(initialRegister)
-    } catch (error) {
-      setMessage(error.response?.data?.message || 'Registration failed')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const { login, register: registerUser } = useAuth()
+  const [tab, setTab] = useState('login')
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="grid w-full max-w-6xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/80 shadow-glow lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="relative overflow-hidden p-8 lg:p-12">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(34,211,238,0.18),_transparent_32%),radial-gradient(circle_at_bottom_left,_rgba(59,130,246,0.18),_transparent_28%)]" />
-          <div className="relative z-10 max-w-xl">
-            <p className="text-xs uppercase tracking-[0.4em] text-cyan-300">SmartCRM AI</p>
-            <h1 className="mt-4 text-4xl font-bold leading-tight text-white lg:text-6xl">SmartCRM AI — Local-first CRM with predictive intelligence</h1>
-            <p className="mt-5 max-w-lg text-base leading-7 text-slate-300">
-              Capture and manage leads, surface conversion likelihood, analyze customer sentiment, and predict churn using on-device machine learning. Designed for secure, offline demos and portfolio-ready presentations.
-            </p>
-
-            <div className="mt-10 grid gap-4 sm:grid-cols-2">
-              {[
-                ['Enterprise-Ready Architecture', 'Local-first deployment for secure, portable demonstrations and interviews.'],
-                ['AI-Powered Insights', 'On-device models: Random Forest lead scoring, Logistic Regression churn prediction, and TextBlob sentiment analysis.'],
-                ['End-to-End CRM Workflows', 'Full lead lifecycle: capture, interactions, status tracking, and customer conversion.'],
-                ['Modern Design System', 'Responsive dashboard with charts, tables, and accessible UI components for professional demos.']
-              ].map(([title, text]) => (
-                <div key={title} className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                  <p className="font-semibold text-white">{title}</p>
-                  <p className="mt-1 text-sm text-slate-400">{text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+    <div className="flex min-h-screen">
+      {/* Marketing panel — hidden on small screens so the form gets the space. */}
+      <aside className="hidden w-1/2 flex-col justify-between bg-[linear-gradient(140deg,#eff6ff_0%,#ede9fe_55%,#fdf2f8_100%)] p-10 lg:flex dark:bg-[linear-gradient(140deg,#111827_0%,#1e1b2e_55%,#2a1f2b_100%)]">
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 w-7 items-center justify-center rounded bg-primary text-sm font-bold text-primary-foreground">S</span>
+          <span className="font-semibold">SmartCRM</span>
         </div>
-
-        <div className="border-t border-white/10 bg-slate-900/90 p-8 lg:border-t-0 lg:border-l lg:p-12">
-          <div className="mb-8 flex rounded-2xl border border-white/10 bg-white/5 p-1">
-            <button
-              type="button"
-              onClick={() => setMode('login')}
-              className={`flex-1 rounded-2xl px-4 py-3 text-sm font-semibold transition ${mode === 'login' ? 'bg-white text-slate-950' : 'text-slate-300 hover:text-white'}`}
-            >
-              Login
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('register')}
-              className={`flex-1 rounded-2xl px-4 py-3 text-sm font-semibold transition ${mode === 'register' ? 'bg-white text-slate-950' : 'text-slate-300 hover:text-white'}`}
-            >
-              Register
-            </button>
-          </div>
-
-          {message ? <div className="mb-5 rounded-2xl border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-200">{message}</div> : null}
-
-          {mode === 'login' ? (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Email</label>
-                <input
-                  type="email"
-                  value={loginForm.email}
-                  onChange={(event) => setLoginForm({ ...loginForm, email: event.target.value })}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none ring-0 placeholder:text-slate-500 focus:border-cyan-400"
-                  placeholder="admin@smartcrm.local"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Password</label>
-                <input
-                  type="password"
-                  value={loginForm.password}
-                  onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                  placeholder="••••••••"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-3 font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loading ? 'Signing in...' : 'Login'}
-              </button>
-              <p className="text-sm text-slate-400">
-                Demo accounts: <span className="text-white">admin@smartcrm.local / admin123</span> or <span className="text-white">sales@smartcrm.local / sales123</span>
-              </p>
-            </form>
-          ) : (
-            <form onSubmit={handleRegister} className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Name</label>
-                <input
-                  type="text"
-                  value={registerForm.name}
-                  onChange={(event) => setRegisterForm({ ...registerForm, name: event.target.value })}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                  placeholder="Your name"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Email</label>
-                <input
-                  type="email"
-                  value={registerForm.email}
-                  onChange={(event) => setRegisterForm({ ...registerForm, email: event.target.value })}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                  placeholder="you@example.com"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Password</label>
-                <input
-                  type="password"
-                  value={registerForm.password}
-                  onChange={(event) => setRegisterForm({ ...registerForm, password: event.target.value })}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-400"
-                  placeholder="Create a password"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Role</label>
-                <select
-                  value={registerForm.role}
-                  onChange={(event) => setRegisterForm({ ...registerForm, role: event.target.value })}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none focus:border-cyan-400"
-                >
-                  <option value="salesperson">Salesperson</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 px-4 py-3 font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loading ? 'Creating account...' : 'Register'}
-              </button>
-            </form>
-          )}
+        <div className="max-w-md">
+          <span className="flex h-12 w-12 items-center justify-center rounded-xl border bg-background/70 shadow-sm">
+            <LayoutGrid className="h-6 w-6 text-primary" aria-hidden />
+          </span>
+          <h2 className="mt-4 text-3xl font-bold tracking-tight">One workspace for leads, deals and follow-ups.</h2>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Track the whole journey — lead, qualification, deal, close — with scoring and churn signals built in.
+          </p>
         </div>
-      </div>
+        <p className="text-xs text-muted-foreground">Runs entirely on your machine. No external services.</p>
+      </aside>
+
+      <main className="flex w-full items-center justify-center p-6 lg:w-1/2">
+        <div className="w-full max-w-sm">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {tab === 'login' ? 'Sign in to SmartCRM' : 'Create your account'}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {tab === 'login' ? 'Welcome back.' : 'New accounts start with the salesperson role.'}
+          </p>
+
+          <Tabs value={tab} onValueChange={setTab} className="mt-6">
+            <TabsList className="w-full">
+              <TabsTrigger value="login" className="flex-1">Sign in</TabsTrigger>
+              <TabsTrigger value="register" className="flex-1">Register</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="login">
+              <AuthForm
+                schema={loginSchema}
+                fields={[
+                  { name: 'email', label: 'Email', type: 'email', placeholder: 'you@company.com', autoComplete: 'email' },
+                  { name: 'password', label: 'Password', type: 'password', autoComplete: 'current-password' }
+                ]}
+                submitLabel="Sign in"
+                mutation={login}
+                onDone={() => navigate('/home', { replace: true })}
+              />
+              <div className="mt-6 rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground">Demo accounts</p>
+                <p className="mt-1">admin@smartcrm.local · admin123</p>
+                <p>sales@smartcrm.local · sales123</p>
+                <p className="mt-1.5">Seeded only in development, and configurable via environment variables.</p>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="register">
+              <AuthForm
+                schema={registerSchema}
+                fields={[
+                  { name: 'name', label: 'Full name', placeholder: 'Jane Cooper', autoComplete: 'name' },
+                  { name: 'email', label: 'Email', type: 'email', placeholder: 'you@company.com', autoComplete: 'email' },
+                  { name: 'password', label: 'Password', type: 'password', autoComplete: 'new-password', hint: 'At least 8 characters' }
+                ]}
+                submitLabel="Create account"
+                mutation={registerUser}
+                onDone={() => setTab('login')}
+              />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </main>
     </div>
+  )
+}
+
+function AuthForm({ schema, fields, submitLabel, mutation, onDone }) {
+  const { register, handleSubmit, setError, formState } = useForm({ resolver: zodResolver(schema), mode: 'onBlur' })
+
+  const onSubmit = handleSubmit(async (values) => {
+    try {
+      await mutation.mutateAsync(values)
+      onDone()
+    } catch (error) {
+      const fieldErrors = error.fieldErrors || {}
+      if (Object.keys(fieldErrors).length) {
+        Object.entries(fieldErrors).forEach(([field, message]) => setError(field, { message }))
+      } else {
+        setError('root', { message: error.message })
+      }
+    }
+  })
+
+  return (
+    <form onSubmit={onSubmit} className="mt-4 space-y-4" noValidate>
+      {fields.map((field) => (
+        <div key={field.name}>
+          <Label htmlFor={field.name} className="mb-1.5 block">{field.label}</Label>
+          <Input
+            id={field.name}
+            type={field.type || 'text'}
+            placeholder={field.placeholder}
+            autoComplete={field.autoComplete}
+            invalid={!!formState.errors[field.name]}
+            {...register(field.name)}
+          />
+          {formState.errors[field.name] ? (
+            <p className="mt-1 text-xs text-destructive" role="alert">{formState.errors[field.name].message}</p>
+          ) : field.hint ? (
+            <p className="mt-1 text-xs text-muted-foreground">{field.hint}</p>
+          ) : null}
+        </div>
+      ))}
+
+      {formState.errors.root ? (
+        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+          {formState.errors.root.message}
+        </p>
+      ) : null}
+
+      <Button type="submit" className="w-full" loading={mutation.isPending}>{submitLabel}</Button>
+    </form>
   )
 }
